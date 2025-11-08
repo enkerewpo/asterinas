@@ -17,6 +17,7 @@ use self::{
     template::{DirOps, ProcDir, ProcDirBuilder, ProcSymBuilder, SymOps},
     thread_self::ThreadSelfSymOps,
     uptime::UptimeFileOps,
+    version::VersionFileOps,
 };
 use crate::{
     events::Observer,
@@ -44,6 +45,7 @@ mod sys;
 mod template;
 mod thread_self;
 mod uptime;
+mod version;
 
 pub(super) fn init() {
     super::registry::register(&ProcFsType).unwrap();
@@ -153,6 +155,7 @@ impl RootDirOps {
         ("sys", SysDirOps::new_inode),
         ("thread-self", ThreadSelfSymOps::new_inode),
         ("uptime", UptimeFileOps::new_inode),
+        ("version", VersionFileOps::new_inode),
     ];
 }
 

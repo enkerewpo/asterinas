@@ -231,6 +231,27 @@ fn build_kernel_elf(
 
     let mut command = cargo();
     command.env_remove("RUSTUP_TOOLCHAIN");
+    // Pass compile info environment variables to cargo build
+    // These are set by Makefile and need to be available at compile time for option_env! macro
+    // The environment variables must be set before calling cargo build so that rustc can read them
+    if let Ok(compile_by) = std::env::var("LINUX_COMPILE_BY") {
+        info!("Setting LINUX_COMPILE_BY to {}", &compile_by);
+        command.env("LINUX_COMPILE_BY", &compile_by);
+    } else {
+        warn!("LINUX_COMPILE_BY is not set");
+    }
+    if let Ok(compile_host) = std::env::var("LINUX_COMPILE_HOST") {
+        info!("Setting LINUX_COMPILE_HOST to {}", &compile_host);
+        command.env("LINUX_COMPILE_HOST", &compile_host);
+    } else {
+        warn!("LINUX_COMPILE_HOST is not set");
+    }
+    if let Ok(compiler) = std::env::var("LINUX_COMPILER") {
+        info!("Setting LINUX_COMPILER to {}", &compiler);
+        command.env("LINUX_COMPILER", &compiler);
+    } else {
+        warn!("LINUX_COMPILER is not set");
+    }
     command.env("RUSTFLAGS", rustflags.join(" "));
     command.arg("build");
     command.arg("--features").arg(features.join(" "));

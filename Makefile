@@ -170,6 +170,14 @@ CARGO_OSDK_TEST_ARGS += $(CARGO_OSDK_COMMON_ARGS)
 # Pass make variables to all subdirectory makes
 export
 
+# Environment variables for Linux kernel build info
+# These are used by the kernel to display build information
+LINUX_BUILD_ENV := \
+	export LINUX_COMPILE_BY="$${KBUILD_BUILD_USER:-$$(whoami)}" && \
+	export LINUX_COMPILE_HOST="$${KBUILD_BUILD_HOST:-$$(uname -n)}" && \
+	export LINUX_COMPILER="$$(rustc --version 2>/dev/null || \
+		echo 'rustc (unknown)'), rust-lld" &&
+
 # Basically, non-OSDK crates do not depend on Aster Frame and can be checked
 # or tested without OSDK.
 NON_OSDK_CRATES := \
@@ -237,6 +245,7 @@ install_osdk:
 $(CARGO_OSDK): $(OSDK_SRC_FILES)
 	@$(MAKE) --no-print-directory install_osdk
 
+
 .PHONY: check_osdk
 check_osdk:
 	@cd osdk && cargo clippy -- -D warnings
@@ -264,7 +273,9 @@ initramfs: check_vdso
 
 .PHONY: build
 build: initramfs $(CARGO_OSDK)
-	@cd kernel && cargo osdk build $(CARGO_OSDK_BUILD_ARGS)
+	@cd kernel && \
+		$(LINUX_BUILD_ENV) \
+		cargo osdk build $(CARGO_OSDK_BUILD_ARGS)
 
 .PHONY: tools
 tools:
@@ -272,7 +283,9 @@ tools:
 
 .PHONY: run
 run: initramfs $(CARGO_OSDK)
-	@cd kernel && cargo osdk run $(CARGO_OSDK_BUILD_ARGS)
+	@cd kernel && \
+		$(LINUX_BUILD_ENV) \
+		cargo osdk run $(CARGO_OSDK_BUILD_ARGS)
 # Check the running status of auto tests from the QEMU log
 ifeq ($(AUTO_TEST), syscall)
 	@tail --lines 100 qemu.log | grep -q "^All syscall tests passed." \
@@ -290,7 +303,9 @@ endif
 
 .PHONY: gdb_server
 gdb_server: initramfs $(CARGO_OSDK)
-	@cd kernel && cargo osdk run $(CARGO_OSDK_BUILD_ARGS) --gdb-server wait-client,vscode,addr=:$(GDB_TCP_PORT)
+	@cd kernel && \
+		$(LINUX_BUILD_ENV) \
+		cargo osdk run $(CARGO_OSDK_BUILD_ARGS) --gdb-server wait-client,vscode,addr=:$(GDB_TCP_PORT)
 
 .PHONY: gdb_client
 gdb_client: initramfs $(CARGO_OSDK)
@@ -298,7 +313,9 @@ gdb_client: initramfs $(CARGO_OSDK)
 
 .PHONY: profile_server
 profile_server: initramfs $(CARGO_OSDK)
-	@cd kernel && cargo osdk run $(CARGO_OSDK_BUILD_ARGS) --gdb-server addr=:$(GDB_TCP_PORT)
+	@cd kernel && \
+		$(LINUX_BUILD_ENV) \
+		cargo osdk run $(CARGO_OSDK_BUILD_ARGS) --gdb-server addr=:$(GDB_TCP_PORT)
 
 .PHONY: profile_client
 profile_client: initramfs $(CARGO_OSDK)

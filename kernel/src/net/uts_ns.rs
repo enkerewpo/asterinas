@@ -100,6 +100,17 @@ impl UtsNamespace {
 }
 
 const UTS_FIELD_LEN: usize = 65;
+macro_rules! impl_uts_field_getter {
+    ($field:ident) => {
+        pub fn $field(&self) -> Result<&str> {
+            Self::field_to_str(
+                &self.$field,
+                concat!("invalid ", stringify!($field), " in UTS namespace"),
+                concat!(stringify!($field), " is not valid UTF-8"),
+            )
+        }
+    };
+}
 
 #[derive(Debug, Clone, Copy, Pod)]
 #[repr(C)]
@@ -110,6 +121,28 @@ pub struct UtsName {
     version: [u8; UTS_FIELD_LEN],
     machine: [u8; UTS_FIELD_LEN],
     domainname: [u8; UTS_FIELD_LEN],
+}
+
+#[allow(unused)]
+impl UtsName {
+    /// Converts a UTS field byte array to a UTF-8 string.
+    fn field_to_str<'a>(
+        field: &'a [u8; UTS_FIELD_LEN],
+        invalid_msg: &'static str,
+        utf8_msg: &'static str,
+    ) -> Result<&'a str> {
+        CStr::from_bytes_until_nul(field)
+            .map_err(|_| Error::with_message(Errno::EINVAL, invalid_msg))?
+            .to_str()
+            .map_err(|_| Error::with_message(Errno::EINVAL, utf8_msg))
+    }
+
+    impl_uts_field_getter!(sysname);
+    impl_uts_field_getter!(nodename);
+    impl_uts_field_getter!(release);
+    impl_uts_field_getter!(version);
+    impl_uts_field_getter!(machine);
+    impl_uts_field_getter!(domainname);
 }
 
 fn copy_uts_field_from_user(addr: Vaddr, len: u32, ctx: &Context) -> Result<[u8; UTS_FIELD_LEN]> {
