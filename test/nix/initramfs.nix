@@ -1,5 +1,5 @@
 { lib, stdenvNoCC, fetchFromGitHub, hostPlatform, writeClosure, busybox, apps
-, benchmark, syscall, dnsServer, pkgs }:
+, benchmark, syscall, dnsServer, openssh, pkgs }:
 let
   etc = lib.fileset.toSource {
     root = ./../src/etc;
@@ -19,7 +19,8 @@ let
     ++ lib.optionals (apps != null) [ apps.package ]
     ++ lib.optionals (benchmark != null) [ benchmark.package ]
     ++ lib.optionals (syscall != null) [ syscall.package ]
-    ++ lib.optionals is_evtest_included [ pkgs.evtest ];
+    ++ lib.optionals is_evtest_included [ pkgs.evtest ]
+    ++ lib.optionals (openssh != null) [ openssh openssh.openssh ];
 in stdenvNoCC.mkDerivation {
   name = "initramfs";
   buildCommand = ''
@@ -35,8 +36,14 @@ in stdenvNoCC.mkDerivation {
       cp -r ${pkgs.evtest}/bin/* $out/bin/
     ''}
 
-    cp -r ${etc}/* $out/etc/
-
+    # Copy etc files, but exclude passwd and group if openssh provides them
+    cp -r ${etc}/* $out/etc/ 2>/dev/null || true
+    
+    ${lib.optionalString (openssh != null) ''
+      # Remove default passwd/group files before copying openssh ones
+      rm -f $out/etc/passwd $out/etc/group
+    ''}
+    
     cp ${resolv_conf}/resolv.conf $out/etc/
 
     ${lib.optionalString (apps != null) ''
@@ -49,6 +56,26 @@ in stdenvNoCC.mkDerivation {
 
     ${lib.optionalString (syscall != null) ''
       cp -r "${syscall.package}"/opt/* $out/opt/
+    ''}
+
+    ${lib.optionalString (openssh != null) ''
+      # Copy OpenSSH package contents (bin/sbin -> usr/bin/usr/sbin)
+      mkdir -p $out/usr/{bin,sbin,libexec} $out/etc/ssh $out/var/empty $out/root/.ssh
+      cp -r ${openssh}/bin/* $out/usr/bin/ 2>/dev/null || true
+      cp -r ${openssh}/sbin/* $out/usr/sbin/ 2>/dev/null || true
+      cp -r ${openssh}/libexec/* $out/usr/libexec/ 2>/dev/null || true
+      cp -r ${openssh}/etc/ssh/* $out/etc/ssh/ 2>/dev/null || true
+      cp -r ${openssh}/var/* $out/var/ 2>/dev/null || true
+      cp -r ${openssh}/root/* $out/root/ 2>/dev/null || true
+      # Copy passwd/group with sshd user (must be after removing default ones)
+      cp ${openssh}/etc/passwd $out/etc/passwd
+      cp ${openssh}/etc/group $out/etc/group
+      # Create nix store symlink for sshd hardcoded paths
+      if [ -f ${openssh}/nix-store-path ]; then
+        OPENSSH_STORE_PATH=$(cat ${openssh}/nix-store-path)
+        mkdir -p "$(dirname $out$OPENSSH_STORE_PATH/libexec)"
+        ln -sfn /usr/libexec "$out$OPENSSH_STORE_PATH/libexec" 2>/dev/null || true
+      fi
     ''}
 
     ${lib.optionalString (syscall != null && syscall.testSuite == "gvisor") ''
@@ -73,5 +100,6 @@ in stdenvNoCC.mkDerivation {
       fi
       cp -r $dep_path $out/nix/store/
     done < ${writeClosure all_pkgs}
+    
   '';
 }

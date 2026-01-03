@@ -111,6 +111,10 @@ else ifeq ($(AUTO_TEST), vsock)
 ENABLE_BASIC_TEST := true
 export VSOCK=on
 CARGO_OSDK_BUILD_ARGS += --init-args="/test/run_vsock_test.sh"
+else ifeq ($(AUTO_TEST), ssh)
+ENABLE_BASIC_TEST := true
+ENABLE_SSH_TEST := true
+CARGO_OSDK_BUILD_ARGS += --init-args="/test/test_sshd.sh"
 endif
 
 ifeq ($(RELEASE_LTO), 1)
@@ -319,6 +323,9 @@ else ifeq ($(AUTO_TEST), boot)
 else ifeq ($(AUTO_TEST), vsock)
 	@tail --lines 100 qemu.log | grep -q "^Vsock test passed." \
 		|| (echo "Vsock test failed" && exit 1)
+else ifeq ($(AUTO_TEST), ssh)
+	@tail --lines 100 qemu.log | grep -q "Server listening on" \
+		|| (echo "SSH test failed" && exit 1)
 endif
 
 # Build the Asterinas NixOS ISO installer image

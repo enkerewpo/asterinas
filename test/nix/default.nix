@@ -1,7 +1,7 @@
 { target ? "x86_64", enableBasicTest ? false, basicTestPlatform ? "asterinas"
 , enableBenchmark ? false, enableSyscallTest ? false, syscallTestSuite ? "ltp"
 , syscallTestWorkDir ? "/tmp", dnsServer ? "none", smp ? 1
-, initramfsCompressed ? true, }:
+, initramfsCompressed ? true, enableSshTest ? false, }:
 let
   crossSystem.config = if target == "x86_64" then
     "x86_64-unknown-linux-gnu"
@@ -16,9 +16,18 @@ let
       "https://github.com/NixOS/nixpkgs/archive/c0bebd16e69e631ac6e52d6eb439daba28ac50cd.tar.gz";
     sha256 = "1fbhkqm8cnsxszw4d4g0402vwsi75yazxkpfx3rdvln4n6s68saf";
   };
+  # Overlay to disable seccomp sandbox in OpenSSH (Asterinas doesn't support seccomp)
+  openssh-overlay = final: prev: {
+    openssh = prev.openssh.overrideAttrs (oldAttrs: {
+      configureFlags = (oldAttrs.configureFlags or []) ++ [
+        "--with-sandbox=no"
+      ];
+    });
+  };
+  
   pkgs = import nixpkgs {
     config = { };
-    overlays = [ ];
+    overlays = [ openssh-overlay ];
     inherit crossSystem;
   };
 in rec {
@@ -31,11 +40,13 @@ in rec {
     testSuite = syscallTestSuite;
     workDir = syscallTestWorkDir;
   };
+  openssh = pkgs.callPackage ./openssh.nix { };
   initramfs = pkgs.callPackage ./initramfs.nix {
     inherit busybox;
     apps = if enableBasicTest then apps else null;
     benchmark = if enableBenchmark then benchmark else null;
     syscall = if enableSyscallTest then syscall else null;
+    openssh = if enableSshTest then openssh else null;
     dnsServer = dnsServer;
   };
   initramfs-image = pkgs.callPackage ./initramfs-image.nix {
